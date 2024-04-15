@@ -246,7 +246,7 @@ def main():
     data_dir = 'D:\\blender_renders\\MINE_SEQ_5'
     vo = VisualOdometry(data_dir)
 
-    play_trip(vo.images)  # Comment out to not play the trip
+    # play_trip(vo.images)  # Comment out to not play the trip
 
     gt_poses = []
     gt_path = []
