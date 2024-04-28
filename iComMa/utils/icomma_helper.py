@@ -51,22 +51,7 @@ def combine_3dgs_rotation_translation(R_c2w, T_w2c):
 
 def get_pose_estimation_input(obs_view,delta):
     gt_pose_c2w=combine_3dgs_rotation_translation(obs_view.R,obs_view.T)
-    # start_pose_c2w =  trans_t_xyz(delta[3],delta[4],delta[5]) @ rot_phi(delta[0]/180.*np.pi) @ rot_theta(delta[1]/180.*np.pi) @ rot_psi(delta[2]/180.*np.pi)  @ gt_pose_c2w
-    # print('a')
-
-    # print('start pose')
-    # print(start_pose_w2c)
-    #
-    # print('gt pose')
-    # print(gt_pose_c2w)
-
-    start_pose_c2w = np.array([
-        [1, 0, 0, 0],
-        [0, 4.371138828673793e-08, 1, -9],
-        [0, -1, 4.371138828673793e-08, 0],
-        [0, 0, 0, 1]
-    ])
-
+    start_pose_c2w =  trans_t_xyz(delta[3],delta[4],delta[5]) @ rot_phi(delta[0]/180.*np.pi) @ rot_theta(delta[1]/180.*np.pi) @ rot_psi(delta[2]/180.*np.pi)  @ gt_pose_c2w
     icomma_info = iComMa_input_info(gt_pose_c2w=gt_pose_c2w,
         start_pose_w2c=torch.from_numpy(np.linalg.inv(start_pose_c2w)).float(),
         query_image= obs_view.original_image[0:3, :, :],
@@ -74,28 +59,27 @@ def get_pose_estimation_input(obs_view,delta):
         FoVy=obs_view.FoVy,
         image_width=obs_view.image_width,
         image_height=obs_view.image_height)
-    
+
     return icomma_info
 
 
 def get_pose_estimation_input_2(obs_view, obs_view_prev):
     gt_pose_c2w = combine_3dgs_rotation_translation(obs_view.R, obs_view.T)
-    # start_pose_c2w =  trans_t_xyz(delta[3],delta[4],delta[5]) @ rot_phi(delta[0]/180.*np.pi) @ rot_theta(delta[1]/180.*np.pi) @ rot_psi(delta[2]/180.*np.pi)  @ gt_pose_c2w
-    # print('a')
-
-    # print('start pose')
-    # print(start_pose_w2c)
-    #
-    # print('gt pose')
-    # print(gt_pose_c2w)
-
-    # start_pose_c2w = np.array([
-    #     [1, 0, 0, 0],
-    #     [0, 4.371138828673793e-08, 1, -9],
-    #     [0, -1, 4.371138828673793e-08, 0],
-    #     [0, 0, 0, 1]
-    # ])
     start_pose_c2w = combine_3dgs_rotation_translation(obs_view_prev.R, obs_view_prev.T)
+
+    icomma_info = iComMa_input_info(gt_pose_c2w=gt_pose_c2w,
+                                    start_pose_w2c=torch.from_numpy(np.linalg.inv(start_pose_c2w)).float(),
+                                    query_image=obs_view.original_image[0:3, :, :],
+                                    FoVx=obs_view.FoVx,
+                                    FoVy=obs_view.FoVy,
+                                    image_width=obs_view.image_width,
+                                    image_height=obs_view.image_height)
+
+    return icomma_info
+
+def get_pose_estimation_input_3(obs_view, obs_view_prev):
+    gt_pose_c2w = combine_3dgs_rotation_translation(obs_view.R, obs_view.T)
+    start_pose_c2w = obs_view_prev
 
     icomma_info = iComMa_input_info(gt_pose_c2w=gt_pose_c2w,
                                     start_pose_w2c=torch.from_numpy(np.linalg.inv(start_pose_c2w)).float(),

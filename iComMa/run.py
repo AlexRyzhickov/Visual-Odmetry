@@ -8,7 +8,7 @@ from utils.calculate_error_utils import cal_campose_error
 from argparse import ArgumentParser
 from arguments import ModelParams, PipelineParams,iComMaParams, get_combined_args
 from gaussian_renderer import GaussianModel
-from utils.icomma_helper import load_LoFTR, get_pose_estimation_input, get_pose_estimation_input_2
+from utils.icomma_helper import load_LoFTR, get_pose_estimation_input, get_pose_estimation_input_2, get_pose_estimation_input_3
 from utils.image_utils import to8b
 import cv2
 import imageio
@@ -56,7 +56,6 @@ def camera_pose_estimation(gaussians:GaussianModel, background:torch.tensor, pip
     # start optimizing
     optimizer = optim.Adam(camera_pose.parameters(),lr = icommaparams.camera_pose_lr)
     iter = icommaparams.pose_estimation_iter
-    iter = 200
     num_iter_matching = 0
     for k in range(iter):
 
@@ -96,7 +95,7 @@ def camera_pose_estimation(gaussians:GaussianModel, background:torch.tensor, pip
                 rot_error,translation_error=cal_campose_error(cur_pose_c2w,gt_pose_c2w)
                 # print('Rotation error: ', rot_error)
                 # print('Translation error: ', translation_error)
-                # print('-----------------------------------')
+                print('-----------------------------------')
                
             # output images
             if icommaparams.OVERLAY is True:
@@ -115,12 +114,19 @@ def camera_pose_estimation(gaussians:GaussianModel, background:torch.tensor, pip
 
         camera_pose(start_pose_w2c)
 
+    # Open the file to add data to the end
+    with open('icomma_results.txt', 'a') as f:
+        f.write(np.array2string(gt_pose_c2w.flatten(), separator=' ', max_line_width=np.inf)[1:-1] + '\n')
+        f.write(np.array2string(cur_pose_c2w.flatten(), separator=' ', max_line_width=np.inf)[1:-1] + '\n')
+        f.close()
+
     print('gt', gt_pose_c2w)
     print('estimated', cur_pose_c2w)
-
     # output gif
     if icommaparams.OVERLAY is True:
         imageio.mimwrite(os.path.join(output_path, 'video.gif'), imgs, fps=4)
+
+    return cur_pose_c2w
   
 if __name__ == "__main__":
     # Set up command line argument parser
@@ -160,10 +166,26 @@ if __name__ == "__main__":
     # pose estimation
     # camera_pose_estimation(gaussians,background,pipeline,icommaparams,icomma_info,args.output_path)
 
-    for i in range(1, 5):
+    f = open('icomma_results.txt', 'w')
+    f.close()
+
+
+    # Test 1
+    for i in range(1, 180):
         obs_view_prev = scene.getTrainCameras()[i-1]
         obs_view = scene.getTrainCameras()[i]
         icomma_info = get_pose_estimation_input_2(obs_view, obs_view_prev)
 
         # pose estimation
         camera_pose_estimation(gaussians, background, pipeline, icommaparams, icomma_info, args.output_path)
+
+    #Test2
+    # obs_view_prev = scene.getTrainCameras()[0]
+    # obs_view = scene.getTrainCameras()[1]
+    # icomma_info = get_pose_estimation_input_2(obs_view, obs_view_prev)
+    # cur_camera_pose = camera_pose_estimation(gaussians, background, pipeline, icommaparams, icomma_info, args.output_path)
+    #
+    # for i in range(2, 45):
+    #     obs_view = scene.getTrainCameras()[i]
+    #     icomma_info = get_pose_estimation_input_3(obs_view, cur_camera_pose)
+    #     cur_camera_pose = camera_pose_estimation(gaussians, background, pipeline, icommaparams, icomma_info, args.output_path)
