@@ -4,9 +4,9 @@ import numpy as np
 import cv2
 import random
 from matplotlib import pyplot as plt
-
 from lib.visualization import plotting
 from lib.visualization.video import play_trip
+from scipy.spatial.transform import Rotation
 
 from tqdm import tqdm
 
@@ -17,7 +17,7 @@ class VisualOdometry():
     def __init__(self, data_dir):
         self.K, self.P = self._load_calib(os.path.join(data_dir, 'calib.txt'))
         self.gt_poses = self._load_poses(os.path.join(data_dir, 'poses.txt'))
-        self.images = self._load_images(os.path.join(data_dir, 'images'))
+        self.images = self._load_images(os.path.join(data_dir, 'val'))
         self.orb = cv2.ORB_create(3000)
         FLANN_INDEX_LSH = 6
         index_params = dict(algorithm=FLANN_INDEX_LSH, table_number=6, key_size=12, multi_probe_level=1)
@@ -242,20 +242,50 @@ class VisualOdometry():
             return R2, np.ndarray.flatten(t)
 
 
-def main():
-    data_dir = 'D:\\blender_renders\\MINE_SEQ_5'
-    vo = VisualOdometry(data_dir)
+def scale_factor_from_gt_obs(obs_view, obs_view_prev):
+    return math.sqrt(math.pow(obs_view[0, 3] - obs_view_prev[0, 3], 2) +
+                     math.pow(obs_view[1, 3] - obs_view_prev[1, 3], 2) +
+                     math.pow(obs_view[2, 3] - obs_view_prev[2, 3], 2))
 
-    # play_trip(vo.images)  # Comment out to not play the trip
 
+def test_1(vo):
     gt_poses = []
-    gt_path = []
-    estimated_path = []
-    for i, gt_pose in enumerate(tqdm(vo.gt_poses, unit="pose")):
+    estimated_poses = []
+    for i, gt_pose in enumerate(vo.gt_poses):
         if i == 0:
             cur_pose = gt_pose
         else:
-            scale_factor = math.sqrt(math.pow(gt_pose[0, 3] - gt_poses[i - 1][0], 2) + math.pow(gt_pose[1, 3] - gt_poses[i - 1][1],2) + math.pow(gt_pose[2, 3] - gt_poses[i - 1][2], 2))
+            scale_factor = scale_factor_from_gt_obs(gt_pose, vo.gt_poses[i - 1])
+
+            q1, q2 = vo.get_matches(i)
+            R, t = vo.get_pose(q1, q2)
+
+            t_f = scale_factor * np.matmul(R, t)
+            tr = vo._form_transf(R, t_f)
+            tr_ = np.linalg.inv(tr)
+            cur_pose = np.matmul(vo.gt_poses[i - 1], tr_)
+
+            print('\ngt', gt_pose)
+            print('\nestimated', cur_pose)
+
+        gt_poses.append(gt_pose)
+        estimated_poses.append(cur_pose)
+
+    f = open('cvo_results.txt', 'w')
+    for gt_pose_c2w, cur_pose_c2w in zip(gt_poses[1:], estimated_poses[1:]):
+        f.write(np.array2string(gt_pose_c2w.flatten(), separator=' ', max_line_width=np.inf)[1:-1] + '\n')
+        f.write(np.array2string(cur_pose_c2w.flatten(), separator=' ', max_line_width=np.inf)[1:-1] + '\n')
+    f.close()
+
+
+def test_2(vo, data_dir):
+    gt_poses = []
+    estimated_poses = []
+    for i, gt_pose in enumerate(vo.gt_poses):
+        if i == 0:
+            cur_pose = gt_pose
+        else:
+            scale_factor = scale_factor_from_gt_obs(gt_pose, vo.gt_poses[i - 1])
 
             q1, q2 = vo.get_matches(i)
             R, t = vo.get_pose(q1, q2)
@@ -265,20 +295,37 @@ def main():
             tr_ = np.linalg.inv(tr)
             cur_pose = np.matmul(cur_pose, tr_)
 
-            # from scipy.spatial.transform import Rotation as R1
-            # print()
-            # r = R1.from_matrix(np.copy(tr_[:3, :3]))
-            # print(r.as_euler('xyz', degrees=True))
-            # print()
+            print('\ngt', gt_pose)
+            print('\nestimated', cur_pose)
 
-            print("\nGround truth pose:\n" + str(gt_pose))
-            print("\n Current pose:\n" + str(cur_pose))
-            print("The current pose used x,y: \n" + str(cur_pose[0, 3]) + "   " + str(cur_pose[2, 3]))
-        gt_poses.append((gt_pose[0, 3], gt_pose[1, 3], gt_pose[2, 3]))
-        gt_path.append((gt_pose[0, 3], gt_pose[2, 3]))
-        estimated_path.append((cur_pose[0, 3], cur_pose[2, 3]))
+        gt_poses.append(gt_pose)
+        estimated_poses.append(cur_pose)
 
-    plotting.visualize_paths(gt_path, estimated_path, "Visual Odometry", file_out=os.path.basename(data_dir) + ".html")
+    f = open('cvo_results_path.txt', 'w')
+    for gt_pose_c2w, cur_pose_c2w in zip(gt_poses[1:], estimated_poses[1:]):
+        f.write(np.array2string(gt_pose_c2w.flatten(), separator=' ', max_line_width=np.inf)[1:-1] + '\n')
+        f.write(np.array2string(cur_pose_c2w.flatten(), separator=' ', max_line_width=np.inf)[1:-1] + '\n')
+    f.close()
+
+    gt_path = []
+    estimated_path = []
+
+    for gt_pose_c2w, cur_pose_c2w in zip(gt_poses, estimated_poses):
+        gt_path.append(((gt_pose_c2w[0, 3], gt_pose_c2w[2, 3])))
+        estimated_path.append(((cur_pose_c2w[0, 3], cur_pose_c2w[2, 3])))
+
+    plotting.visualize_paths(gt_path, estimated_path, "Visual Odometry",
+                             file_out=os.path.basename(data_dir) + "_estimated_path.html")
+
+
+def main():
+    data_dir = 'D:\\3DGS\\cozy_kitchen\\cozy_kitchen_180'
+    vo = VisualOdometry(data_dir)
+
+    # play_trip(vo.images)  # Comment out to not play the trip
+
+    # test_1(vo=vo)                     # Comment out to not play the trip
+    test_2(vo=vo, data_dir=data_dir)  # Comment out to not play the trip
 
 
 if __name__ == "__main__":
