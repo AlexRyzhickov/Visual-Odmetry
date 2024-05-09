@@ -64,7 +64,7 @@ class ModelParams(ParamGroup):
 class iComMaParams(ParamGroup):
     def __init__(self, parser):
         self.OVERLAY = False
-        self.camera_pose_lr = 0.03 # learning rate
+        self.camera_pose_lr = 0.05 # learning rate
         self.lambda_LoFTR = 0.8 # balance coefficient
         self.confidence_threshold_LoFTR = 0.5 # Matching points below the threshold will be discarded.
         self.min_matching_points = 5 # The matching module will be deprecated if there are too few detected matching points.

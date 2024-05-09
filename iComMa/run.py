@@ -8,7 +8,7 @@ from utils.calculate_error_utils import cal_campose_error
 from argparse import ArgumentParser
 from arguments import ModelParams, PipelineParams,iComMaParams, get_combined_args
 from gaussian_renderer import GaussianModel
-from utils.icomma_helper import load_LoFTR, get_pose_estimation_input, get_pose_estimation_input_2, get_pose_estimation_input_3
+from utils.icomma_helper import load_LoFTR, get_pose_estimation_input, get_pose_estimation_input_test_1, get_pose_estimation_input_test_2
 from utils.image_utils import to8b
 import cv2
 import imageio
@@ -17,30 +17,14 @@ import ast
 from scene.cameras import Camera_Pose
 from utils.loss_utils import loss_loftr,loss_mse
 import numpy as np
+import time
+
+
 def camera_pose_estimation(gaussians:GaussianModel, background:torch.tensor, pipeline:PipelineParams, icommaparams:iComMaParams, icomma_info, output_path):
     # start pose & gt pose
     gt_pose_c2w=icomma_info.gt_pose_c2w
     start_pose_w2c=icomma_info.start_pose_w2c.cuda()
-
-    # start_pose_w2c_ = torch.from_numpy(
-    #     np.array([
-    #     [1, 0, 0, 0],
-    #     [0, -4.371138828673793e-08, -1, -9],
-    #     [0, 1, -4.371138828673793e-08, 0],
-    #     [0, 0, 0, 1]
-    # ])).float()
-    # start_pose_w2c = start_pose_w2c_.cuda()
-    # print('start pose')
-    # print(start_pose_w2c)
-    # exit()
-
-    # print('start pose')
-    # print(start_pose_w2c)
-    #
-    # print('gt pose')
-    # print(gt_pose_c2w)
-
-    # query_image for comparing 
+    # query_image for comparing
     query_image = icomma_info.query_image.cuda()
 
     # initialize camera pose object
@@ -50,7 +34,7 @@ def camera_pose_estimation(gaussians:GaussianModel, background:torch.tensor, pip
 
     # store gif elements
     imgs=[]
-    
+
     matching_flag= not icommaparams.deprecate_matching
 
     # start optimizing
@@ -64,39 +48,39 @@ def camera_pose_estimation(gaussians:GaussianModel, background:torch.tensor, pip
         if matching_flag:
             loss_matching = loss_loftr(query_image,rendering,LoFTR_model,icommaparams.confidence_threshold_LoFTR,icommaparams.min_matching_points)
             loss_comparing = loss_mse(rendering,query_image)
-            
+
             if loss_matching is None:
                 loss = loss_comparing
-            else:  
+            else:
                 loss = icommaparams.lambda_LoFTR *loss_matching + (1-icommaparams.lambda_LoFTR)*loss_comparing
                 if loss_matching<0.001:
                     matching_flag=False
-                    
+
             num_iter_matching += 1
         else:
             loss_comparing = loss_mse(rendering,query_image)
             loss = loss_comparing
-            
+
             new_lrate = icommaparams.camera_pose_lr * (0.6 ** ((k - num_iter_matching + 1) / 50))
             for param_group in optimizer.param_groups:
                 param_group['lr'] = new_lrate
-        
+
         # output intermediate results
         if (k + 1) % 20 == 0 or k == 0:
             print('Step: ', k)
             if matching_flag and loss_matching is not None:
                 print('Matching Loss: ', loss_matching.item())
-            # print('Comparing Loss: ', loss_comparing.item())
-            # print('Loss: ', loss.item())
+            print('Comparing Loss: ', loss_comparing.item())
+            print('Loss: ', loss.item())
 
             # record error
             with torch.no_grad():
                 cur_pose_c2w= camera_pose.current_campose_c2w()
                 rot_error,translation_error=cal_campose_error(cur_pose_c2w,gt_pose_c2w)
-                # print('Rotation error: ', rot_error)
-                # print('Translation error: ', translation_error)
+                print('Rotation error: ', rot_error)
+                print('Translation error: ', translation_error)
                 print('-----------------------------------')
-               
+
             # output images
             if icommaparams.OVERLAY is True:
                 with torch.no_grad():
@@ -127,7 +111,7 @@ def camera_pose_estimation(gaussians:GaussianModel, background:torch.tensor, pip
         imageio.mimwrite(os.path.join(output_path, 'video.gif'), imgs, fps=4)
 
     return cur_pose_c2w
-  
+
 if __name__ == "__main__":
     # Set up command line argument parser
     parser = ArgumentParser(description="Camera pose estimation parameters")
@@ -140,15 +124,15 @@ if __name__ == "__main__":
     parser.add_argument("--delta", default="[30,10,10,0.1,0.1,0.1]", type=str)
     parser.add_argument("--iteration", default=-1, type=int)
     args = get_combined_args(parser)
-   
+
     # Initialize system state (RNG)
     safe_state(args.quiet)
 
     makedirs(args.output_path, exist_ok=True)
-    
+
     # load LoFTR_model
     LoFTR_model=load_LoFTR(icommaparams.LoFTR_ckpt_path,icommaparams.LoFTR_temp_bug_fix)
-    
+
     # load gaussians
     dataset = model.extract(args)
     gaussians = GaussianModel(dataset.sh_degree)
@@ -162,30 +146,30 @@ if __name__ == "__main__":
     #obs_view=scene.getTestCameras()[args.obs_img_index]
     # obs_view=scene.getTrainCameras()[args.obs_img_index]
     # icomma_info=get_pose_estimation_input(obs_view,ast.literal_eval(args.delta))
-    
+
     # pose estimation
     # camera_pose_estimation(gaussians,background,pipeline,icommaparams,icomma_info,args.output_path)
 
     f = open('icomma_results.txt', 'w')
     f.close()
-
-
+    t = time.time()
     # Test 1
-    for i in range(1, 180):
-        obs_view_prev = scene.getTrainCameras()[i-1]
-        obs_view = scene.getTrainCameras()[i]
-        icomma_info = get_pose_estimation_input_2(obs_view, obs_view_prev)
-
-        # pose estimation
-        camera_pose_estimation(gaussians, background, pipeline, icommaparams, icomma_info, args.output_path)
+    # for i in range(1, len(scene.getTrainCameras())):
+    #     obs_view_prev = scene.getTrainCameras()[i-1]
+    #     obs_view = scene.getTrainCameras()[i]
+    #     icomma_info = get_pose_estimation_input_2(obs_view, obs_view_prev)
+    #
+    #     # pose estimation
+    #     camera_pose_estimation(gaussians, background, pipeline, icommaparams, icomma_info, args.output_path)
 
     #Test2
-    # obs_view_prev = scene.getTrainCameras()[0]
-    # obs_view = scene.getTrainCameras()[1]
-    # icomma_info = get_pose_estimation_input_2(obs_view, obs_view_prev)
-    # cur_camera_pose = camera_pose_estimation(gaussians, background, pipeline, icommaparams, icomma_info, args.output_path)
-    #
-    # for i in range(2, 45):
-    #     obs_view = scene.getTrainCameras()[i]
-    #     icomma_info = get_pose_estimation_input_3(obs_view, cur_camera_pose)
-    #     cur_camera_pose = camera_pose_estimation(gaussians, background, pipeline, icommaparams, icomma_info, args.output_path)
+    obs_view_prev = scene.getTrainCameras()[0]
+    obs_view = scene.getTrainCameras()[1]
+    icomma_info = get_pose_estimation_input_test_1(obs_view, obs_view_prev)
+    cur_camera_pose = camera_pose_estimation(gaussians, background, pipeline, icommaparams, icomma_info, args.output_path)
+
+    for i in range(2, len(scene.getTrainCameras())):
+        obs_view = scene.getTrainCameras()[i]
+        icomma_info = get_pose_estimation_input_test_2(obs_view, cur_camera_pose)
+        cur_camera_pose = camera_pose_estimation(gaussians, background, pipeline, icommaparams, icomma_info, args.output_path)
+    print(f"Time to estimate camera poses: {int(time.time() - t):d} s.")

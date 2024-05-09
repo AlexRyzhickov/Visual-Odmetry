@@ -63,7 +63,7 @@ def get_pose_estimation_input(obs_view,delta):
     return icomma_info
 
 
-def get_pose_estimation_input_2(obs_view, obs_view_prev):
+def get_pose_estimation_input_test_1(obs_view, obs_view_prev):
     gt_pose_c2w = combine_3dgs_rotation_translation(obs_view.R, obs_view.T)
     start_pose_c2w = combine_3dgs_rotation_translation(obs_view_prev.R, obs_view_prev.T)
 
@@ -77,7 +77,7 @@ def get_pose_estimation_input_2(obs_view, obs_view_prev):
 
     return icomma_info
 
-def get_pose_estimation_input_3(obs_view, obs_view_prev):
+def get_pose_estimation_input_test_2(obs_view, obs_view_prev):
     gt_pose_c2w = combine_3dgs_rotation_translation(obs_view.R, obs_view.T)
     start_pose_c2w = obs_view_prev
 
@@ -100,4 +100,3 @@ class iComMa_input_info(NamedTuple):
     image_width:int
     image_height:int
 
-    
